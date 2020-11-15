@@ -141,6 +141,7 @@ class Scatter:
             same parameters as numpy.linalg.solve
         '''
 
+        self.a = a
         self.k = k
         self.rho = rho
         self.verbose = verbose
@@ -165,8 +166,6 @@ class Scatter:
 
         Keywords
         --------
-        a : float
-            The particle radius. If not specified, use existing value.
         N : int
             The number of normal points. If not specified, use existing value.
         source_depth : float
@@ -174,7 +173,7 @@ class Scatter:
             existing value.
         '''
         # Redefine variabes if needed.
-        self.a = self.a if a is None else a
+        # self.a = self.a if a is None else a
         self.N = self.N if N is None else N
         self.source_depth = self.source_depth if source_depth is None else source_depth
 
@@ -189,7 +188,7 @@ class Scatter:
 
         # Create boundary and source point arrays
         # Incdices: [N, 3]
-        self.bdy1 = self.a * self.normal
+        self.bdy1 = self.normal
         self.src1 = (1-self.source_depth) * self.bdy1
 
 
@@ -341,8 +340,8 @@ class Scatter:
         # Array indices are right aligned, so the bdy1/src1 arrays are
         #   are applied to be the same for all particles (particle # = index 0)
         # Indices: [Np, N, Nd=3]
-        self.bdy = self.bdy1 + self.X.reshape(-1, 1, 3)
-        self.src = self.src1 + self.X.reshape(-1, 1, 3)
+        self.bdy = self.a * self.bdy1 + self.X.reshape(-1, 1, 3)
+        self.src = self.a * self.src1 + self.X.reshape(-1, 1, 3)
 
         # Incoming field at the bdy points
         # Indices: [Np, N, Nd]
@@ -446,7 +445,7 @@ class Scatter:
             # Force density is:
             #  p2 = -[(κ/2) <p1>^2 - (ρ/2) <v1>^2)
             #    = (ρ/4) * (|v1|^2 - k^2 |ϕ1|^2)
-            p2 = (0.25*self.rho) * (dot(v, v.conjugate()).real - (self.k**2) * abs(ϕ)**2)
+            p2 = (0.25*self.rho) * ((self.k**2) * abs(ϕ)**2 - dot(v, v.conjugate()).real)
 
         self._tock(f'Calculate p2 ({np.prod(self.c.shape)} -> {np.prod(X.shape[:-1])})')
 
@@ -476,4 +475,4 @@ class Scatter:
         # Rehape prior to multiplication so we can sum over quad points for
         #   each particle.
         # Indices: [Np, Nd=3]
-        return  self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal).sum(1)
+        return  -self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal).sum(1)

@@ -37,6 +37,6 @@ plt.ylabel('$z / \lambda$')
 plt.xlabel('$x / \lambda$')
 
 cbar = plt.colorbar()
-cbar.set_label("$p_2 (a.u.)$")
+cbar.set_label("$p_2 (a. u.)$")
 
 plt.show()

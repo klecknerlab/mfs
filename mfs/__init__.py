@@ -94,17 +94,17 @@ if HAS_NUMBA:
             vz += dz * dG
 
         # p[0] = 0.25*rho * (np.abs(vx)**2 + np.abs(vy)**2 + np.abs(vz)**2 - (k*np.abs(phi))**2)
-        p[0] = 0.25*rho * (abs2(vx) + abs2(vy) + abs2(vz) - k*k*abs2(phi))
+        p[0] = 0.25*rho * (k*k*abs2(phi) - (abs2(vx) + abs2(vy) + abs2(vz)))
 
 
 # Pretty time printing function, used for verbose output
 def _tp(dt):
-    if dt < 1E-3:
-        return f'{dt*1e6:.1f} µs'
-    elif dt < 1:
-        return f'{dt*1e3:.1f} ms'
+    if dt < 2E-3:
+        return f'{dt*1e6:5f} µs'
+    elif dt < 2:
+        return f'{dt*1e3:5f} ms'
     else:
-        return f'{dt*1e3:.1f} s'
+        return f'{dt:5f} s'
 
 
 class Scatter:
@@ -115,7 +115,9 @@ class Scatter:
     # bdy1 (boundary locations for a single particle): [N, Nd=3]
     # src1 (source locations for a single particle): [N, Nd=3]
 
-    def __init__(self, k=1, a=1, N=512, Nq=8, rho=1, source_depth=0.5, verbose=False, use_numba=HAS_NUMBA, solver=np.linalg.solve):
+    def __init__(self, k=1, a=1, N=512, Nq=8, rho=1, source_depth=0.5,
+        lattice_type="icos", verbose=False, use_numba=HAS_NUMBA,
+        solver=np.linalg.solve):
         '''
         Initialize a MSF acoustic scattering simulation.
 
@@ -126,11 +128,17 @@ class Scatter:
         a : float (default: 1)
             The particle size
         N : int (default: 512)
-            The number of source points
+            The number of source points.  For icosahedral or cubic lattices,
+            the actual number of points will be slightly different (if you
+            need the exact value, this is stored in the `N` attribute after
+            initialization)
         Nq : int (default: 8)
             The number of quadrature points in θ
         source_depth : float (default: 0.5)
             The depth of the source points in fractions of a radius
+        lattice_type : str (default: 'icos')
+            The type of lattice used to construct the source/boundary points.
+            Valid options are "fib", "cub", and "icos"
         verbose : bool (default: False)
             If true, print timing information as computations are performed
         use_numba : bool (default: True if numba installed)
@@ -155,28 +163,27 @@ class Scatter:
 
         self._inc = dummy_inc
 
-        self.build_normal(a, N, source_depth)
+        self.N = N
+        self.source_depth = source_depth
+
+        lt = lattice_type.lower()
+        if lt.startswith('fib'):
+            self.build_fib_normal()
+        elif lt.startswith('cub'):
+            self.build_cube_normal()
+        elif lt.startswith('icos'):
+            self.build_icosahedral_normal()
+        else:
+            raise ValueError(f'Invalid lattice type: {lattice_type}')
+
         self.build_quadrature(Nq)
 
 
-    def build_normal(self, a=None, N=None, source_depth=None):
+    def build_fib_normal(self):
         '''Build the normal of points used to compute scattering.  Normally
         this does not need to called by the user, unless you are reconfiguring
         an existing simulation.
-
-        Keywords
-        --------
-        N : int
-            The number of normal points. If not specified, use existing value.
-        source_depth : float
-            The relative depth of the source points. If not specified, use
-            existing value.
         '''
-        # Redefine variabes if needed.
-        # self.a = self.a if a is None else a
-        self.N = self.N if N is None else N
-        self.source_depth = self.source_depth if source_depth is None else source_depth
-
         # Build the Fibonacci normal
         self.normal = np.empty((self.N, 3))
         golden_angle = np.pi * (3.0 - np.sqrt(5.0))
@@ -187,8 +194,99 @@ class Scatter:
         self.normal[:,1] = ρ * np.sin(θ)
 
         # Create boundary and source point arrays
-        # Incdices: [N, 3]
+        # Indices: [N, 3]
         self.bdy1 = self.normal
+        self.src1 = (1-self.source_depth) * self.bdy1
+
+
+    def build_cube_normal(self):
+        '''
+        Build the normal of points used to compute scattering.  Normally
+        this does not need to called by the user, unless you are reconfiguring
+        an existing simulation.
+
+        Note: calling this function may change the number of source points, as
+        it needs to be given by 6n², where n is the number of points per
+        cubic face edge.
+        '''
+        # Enforce N to be 6n²
+        n = int((self.N / 6)**.5 + 0.5) # Find closest points per edge
+        N = 6 * n**2
+        if N != self.N:
+            print(f'Warning: specified number of points ({self.N}) not valid for cube lattice.\nUsed closest value: N={N}')
+            self.N = N
+
+        # Build a lattice on a cube surface
+        # Build one edge first: the centers of a grid from -1 to 1 with n² points
+        edge = (2*np.mgrid[:n, :n].T.reshape(-1, 2) + 1 - n) / n
+        X = np.empty((n**2, 3))
+        X[:, :2] = edge
+        X[:, 2] = 1
+        X = np.vstack([X, X * (1, 1, -1)]) # Mirror about z=0 plane
+        X = np.vstack([X, np.roll(X, 1, axis=1), np.roll(X, 2, axis=1)]) # Permute the axes
+        self.normal = norm(X)
+
+        # Create boundary and source point arrays
+        # Indices: [N, 3]
+        self.bdy1 = self.normal
+        self.src1 = (1-self.source_depth) * self.bdy1
+
+
+    def build_icosahedral_normal(self):
+        '''
+        Build the normal of points used to compute scattering.  Normally
+        this does not need to called by the user, unless you are reconfiguring
+        an existing simulation.
+
+        Note: calling this function may change the number of source points, as
+        it needs to be given by 20n² - 10n + 12, where n is the number of
+        points per icosahedral face edge.  The exact sizes that are possible
+        are: N = 12, 42, 92, 162, 252, 362, 492, 642, 812, 1002, 1212, 1442...
+        '''
+        # Compute the number of points per edge
+        n_edge = 1 + int(((self.N - 2) / 10)**.5 + 0.5)
+        N = 10 * n_edge**2 - 20 * n_edge + 12
+        if N != self.N:
+            print(f'Warning: specified number of points ({self.N}) not valid for icosahedral lattice.\nUsed closest value: N={N}')
+            self.N = N
+
+        # Construct all the corners of a unit icosahedron
+        # https://en.wikipedia.org/wiki/Regular_icosahedron#Cartesian_coordinates
+        ϕ = (1 + 5**.5) / 2
+        d1 = (1 + ϕ**2)**-0.5
+        d2 = ϕ * d1
+        X = np.array([(0, d1, d2), (0, -d1, d2), (0, d1, -d2), (0, -d1, -d2)])
+        X = np.vstack([X, np.roll(X, -1, axis=-1), np.roll(X, -2, axis=-1)])
+
+        # The corners of the faces of an icosahedron, determined by hand
+        tris = [
+            (0, 1, 8), (0,10, 1), (0, 8, 4), (0, 4, 5), (0, 5,10),
+            (1,10, 7), (1, 7, 6), (1, 6, 8), (2, 3,11), (2,11, 5),
+            (2, 5, 4), (2, 4, 9), (2, 9, 3), (3, 9, 6), (3, 6, 7),
+            (3, 7,11), (4, 8, 9), (5,11,10), (6, 9, 8), (7,10,11),
+        ]
+
+        # Fractional displacement vectors along each edge for the splitting
+        DV = np.array(np.triu_indices(n_edge)).T
+        DV[:, 1] = (n_edge - 1) - DV[:, 1]
+        DV = (DV / (n_edge - 1)).reshape(-1, 2, 1)
+
+        # Build the points one face at a time
+        Z = None
+        for i1, i2, i3 in tris:
+            V = np.vstack([X[i2] - X[i1], X[i3] - X[i1]])
+            Y = X[i1] + (DV * V).sum(1)
+            # If this isn't the first face, make sure we aren't repeating points
+            if Z is not None:
+                rmin = mag(Z - Y.reshape(-1, 1, 3)).min(1)
+                Z = np.vstack([Z, Y[np.where(rmin > 0.5/n_edge)]])
+            else:
+                Z = Y
+
+        self.normal = norm(Z)
+        self.bdy1 = self.normal
+        if len(self.bdy1) != self.N:
+            raise ValueError(f'Error in computing icosahedral points; should have been {self.N} points total, but got {len(self.bdy1)}!\nThis should never happen, but it did!\nDid you request an absurd number of points?!')
         self.src1 = (1-self.source_depth) * self.bdy1
 
 
@@ -443,8 +541,8 @@ class Scatter:
             ϕ, v = self.fields(X)
 
             # Force density is:
-            #  p2 = -[(κ/2) <p1>^2 - (ρ/2) <v1>^2)
-            #    = (ρ/4) * (|v1|^2 - k^2 |ϕ1|^2)
+            #  p2 = (κ/2) <p1>² - (ρ/2) <v1>²
+            #     = (ρ/4) (k² |ϕ1|² - |v1|²)
             p2 = (0.25*self.rho) * ((self.k**2) * abs(ϕ)**2 - dot(v, v.conjugate()).real)
 
         self._tock(f'Calculate p2 ({np.prod(self.c.shape)} -> {np.prod(X.shape[:-1])})')

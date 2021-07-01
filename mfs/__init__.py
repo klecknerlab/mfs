@@ -45,6 +45,17 @@ def dot1(X, Y):
 def norm(X):
     return X / mag1(X)
 
+# Contact force function
+def WCA_fxn(a,R):
+    #parameters
+    ϵ = 1
+    σ = 2 * a * ( 2 ** ( -1 / 6 ) )
+    if R < 2*a:
+        F = - 24 * ϵ * ( ((2 * σ ** 12) / ( (R - (2 * a)) ** 13)) - ( (σ ** 6) / ((R - (2 * a)) ** 7) ) )
+    else:
+        F = 0
+    return F
+
 # Numba provides JIT compiled python functions.  These are written as
 #   generlized vector functions, which means they are automatically evaluated
 #   over an array of points in parallel!
@@ -119,7 +130,7 @@ class Scatter:
         lattice_type="icos", verbose=False, use_numba=HAS_NUMBA,
         solver=np.linalg.solve):
         '''
-        Initialize a MSF acoustic scattering simulation.
+        Initialize a MFS acoustic scattering simulation.
 
         Keywords
         --------
@@ -299,7 +310,7 @@ class Scatter:
         ----------
         Nq : int (default: 8)
             The number of quadrature divisions in θ.  Total number of quadrature
-            points is 2 θ^2.
+            points is 2 Nq^2.
         '''
         # Indices for matrix construction is: [Nq, Nϕ, Nd]
         Nϕ = 2 * Nq
@@ -492,7 +503,7 @@ class Scatter:
         ϕ1 : array with shape [...]
             Velocity potential (complex first order fluctuation term)
         v1 : array with shape [..., 3]
-            Velcity (complex first order fluctuation term)
+            Velocity (complex first order fluctuation term)
         '''
 
         # Check if we have solved for the scattering ampltudes
@@ -570,7 +581,34 @@ class Scatter:
 
         # Result is pressure on boundary times surface normal, integrated over
         #   quadrature points with weighted normals
-        # Rehape prior to multiplication so we can sum over quad points for
+        # Reshape prior to multiplication so we can sum over quad points for
         #   each particle.
         # Indices: [Np, Nd=3]
         return  -self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal).sum(1)
+    
+    def WCA(self,X):
+        '''Compute the contact forces between the particles, 
+        based on the Weekes-Chandler-Anderson (WCA) Potential'''
+        #initialize arrays
+        F_contact_r = np.zeros((self.Np,self.Np))
+        F_contact_x = np.zeros((self.Np,self.Np))
+        F_contact_y = np.zeros((self.Np,self.Np))
+        F_contact_z = np.zeros((self.Np,self.Np))
+        Rij = np.zeros((self.Np,self.Np))
+        
+        #determine current separation distance
+        Xij = np.array([X[i-1,0] - X[i,0] for i in range(self.Np)])
+        Yij = np.array([X[i-1,1] - X[i,1] for i in range(self.Np)])
+        Zij = np.array([X[i-1,2] - X[i,2] for i in range(self.Np)])
+        Rij = np.sqrt(Xij**2 + Yij**2 + Zij**2)
+        
+        #determine current contact forces on each particle
+        F_contact_r = [WCA_fxn(self.a,R) for R in Rij]
+        F_contact_x = [np.dot(f,(x/np.abs(x))) for f,x in zip(F_contact_r,Xij)]
+        F_contact_y = [np.dot(f,(x/np.abs(x))) for f,x in zip(F_contact_r,Yij)]
+        F_contact_z = [np.dot(f,(x/np.abs(x))) for f,x in zip(F_contact_r,Zij)]
+        
+        #parse into form acceptable by the integrator
+        F = [[F_contact_x[i],F_contact_y[i],F_contact_z[i]] for i in range(self.Np)]
+        
+        return F

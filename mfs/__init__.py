@@ -586,7 +586,7 @@ class Scatter:
         # Indices: [Np, Nd=3]
         return  -self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal).sum(1)
     
-    def WCA(self,X):
+    def WCA(self):
         '''Compute the contact forces between the particles, 
         based on the Weekes-Chandler-Anderson (WCA) Potential'''
         #initialize arrays
@@ -597,9 +597,9 @@ class Scatter:
         Rij = np.zeros((self.Np,self.Np))
         
         #determine current separation distance
-        Xij = np.array([X[i-1,0] - X[i,0] for i in range(self.Np)])
-        Yij = np.array([X[i-1,1] - X[i,1] for i in range(self.Np)])
-        Zij = np.array([X[i-1,2] - X[i,2] for i in range(self.Np)])
+        Xij = np.array([self.X[i-1,0] - self.X[i,0] for i in range(self.Np)])
+        Yij = np.array([self.X[i-1,1] - self.X[i,1] for i in range(self.Np)])
+        Zij = np.array([self.X[i-1,2] - self.X[i,2] for i in range(self.Np)])
         Rij = np.sqrt(Xij**2 + Yij**2 + Zij**2)
         
         #determine current contact forces on each particle

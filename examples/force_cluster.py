@@ -11,7 +11,7 @@ rho = 1.225
 λ = v0/omega
 k = 2*π / λ
 
-a = 4E-3
+a = 3E-3
 
 
 p1 = 3E3
@@ -39,7 +39,7 @@ X = np.empty((8, 3))
 X[:7] = cluster
 X[7] = (40E-3, 0, 0)
 
-scat.solve(X[:8])
+scat.solve(X)
 
 extents = [-20, 60, -20, 20]
 spacing = 0.5

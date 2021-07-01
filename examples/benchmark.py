@@ -1,14 +1,8 @@
 import mfs
 import numpy as np
-import sys
-
-if len(sys.argv) > 1:
-    N = int(sys.argv[1])
-else:
-    N = 512
 
 k = 1
-scat = mfs.Scatter(N=N, k=k, a=1, source_depth=0.5, Nq=16, verbose=True)
+scat = mfs.Scatter(N=512, k=k, a=1, source_depth=0.5, Nq=16, verbose=True)
 scat.incoming_planewaves([1, -1], [(0, 0, 1), (0, 0, -1)])
 # scat.incoming_planewaves([1], [(0, 0, 1)])
 

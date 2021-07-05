@@ -45,6 +45,12 @@ def dot1(X, Y):
 def norm(X):
     return X / mag1(X)
 
+# Contact Force Function (Based on Weekes-Chandler-Andersen Potential function)
+def WCA(X):
+    ϵ = 1
+    σ = 2 * self.a * ( 2 ** ( -1 / 6 ) )
+    return -24*ϵ*(((2*σ**12)/((X-(2*self.a))**13))-((σ**6)/((X-(2*self.a))** 7)))
+
 # Numba provides JIT compiled python functions.  These are written as
 #   generlized vector functions, which means they are automatically evaluated
 #   over an array of points in parallel!
@@ -476,3 +482,27 @@ class Scatter:
         #   each particle.
         # Indices: [Np, Nd=3]
         return  -self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal).sum(1)
+
+    
+    def contact(self):
+        '''Compute the per particle contact force for a pre-solved system
+        
+        Note: `solve` method must be called first!
+        
+        Returns
+        -------
+        F: array with shape (Np, 3)
+            The contact force on each particle.
+        '''
+        Dx = self.X.reshape(-1,1,3) - self.X.reshape(1,-1,3)
+        
+        R = mag1(Dx)
+        
+        rhat = norm1(Dx)
+        
+        inside = np.where((R<2*a)*(R>a*1e-3))
+        
+        F[inside] = WCA(R[inside]**2)
+        
+        return (F*rhat).sum(1)
+        

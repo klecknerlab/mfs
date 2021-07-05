@@ -46,10 +46,10 @@ def norm(X):
     return X / mag1(X)
 
 # Contact Force Function (Based on Weekes-Chandler-Andersen Potential function)
-def WCA(X):
-    ϵ = 1
-    σ = 2 * self.a * ( 2 ** ( -1 / 6 ) )
-    return -24*ϵ*(((2*σ**12)/((X-(2*self.a))**13))-((σ**6)/((X-(2*self.a))** 7)))
+def WCA(X,a):
+    ϵ = 1e3
+    σ = 2 * a * ( 2 ** ( -1 / 6 ) )
+    return -24*ϵ*(((2*σ**12)/((X-(2*a))**13))-((σ**6)/((X-(2*a))** 7)))
 
 # Numba provides JIT compiled python functions.  These are written as
 #   generlized vector functions, which means they are automatically evaluated
@@ -494,15 +494,22 @@ class Scatter:
         F: array with shape (Np, 3)
             The contact force on each particle.
         '''
+        # Dx: Cartesian separation Matrix, R: Radial separation matrix, 
         Dx = self.X.reshape(-1,1,3) - self.X.reshape(1,-1,3)
-        
         R = mag1(Dx)
         
-        rhat = norm1(Dx)
+        # Initialize force and direction matrices with zeros to preserve shape of final contact matrix
+        F = np.zeros_like(Dx)
+        rhat = np.zeros_like(Dx)
         
-        inside = np.where((R<2*a)*(R>a*1e-3))
+        # Nonself: Indices where separation matrix is nonzero, when feeding a vector of magnitude zero to the `norm` function an error is drawn
+        nonself = np.where(Dx!=0)
+        rhat[nonself] = norm(Dx[nonself])
+    
+        # Inside: Indices where radial separation distance falls within the cutoff distance of the WCA potential, but must be greater than zero
+        inside = np.where((R<2.01*self.a)*(R>self.a*1e-6))
+        F[inside] = WCA(R[inside]**2, self.a)
         
-        F[inside] = WCA(R[inside]**2)
-        
+        # Reshaped to match shape of acoustical force matrix
         return (F*rhat).sum(1)
         

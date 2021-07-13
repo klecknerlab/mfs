@@ -606,7 +606,7 @@ class Scatter:
     
         # Inside: Indices where radial separation distance falls within the cutoff distance of the WCA potential, but must be greater than zero
         inside = np.where((R<2.03*self.a)*(R>self.a*1e-6))
-        F[inside] = WCA(R[inside]**2, self.a)
+        F[inside] = WCA(R[inside], self.a)
         
         # Reshaped to match shape of acoustical force matrix
         return 5.5e-1*(F*rhat).sum(1)

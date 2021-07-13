@@ -47,9 +47,9 @@ def norm(X):
 
 # Contact Force Function (Based on Weekes-Chandler-Andersen Potential function)
 def WCA(X,a):
-    ϵ = 1e3
+    ϵ = 1e-50
     σ = 2 * a * ( 2 ** ( -1 / 6 ) )
-    return -24*ϵ*(((2*σ**12)/((X-(2*a))**13))-((σ**6)/((X-(2*a))** 7)))
+    return 24*ϵ*(((2*σ**12)/((X-(2*a))**13))-((σ**6)/((X-(2*a))** 7)))
 
 # Numba provides JIT compiled python functions.  These are written as
 #   generlized vector functions, which means they are automatically evaluated
@@ -605,9 +605,9 @@ class Scatter:
         rhat[nonself] = norm(Dx[nonself])
     
         # Inside: Indices where radial separation distance falls within the cutoff distance of the WCA potential, but must be greater than zero
-        inside = np.where((R<2.01*self.a)*(R>self.a*1e-6))
+        inside = np.where((R<2.03*self.a)*(R>self.a*1e-6))
         F[inside] = WCA(R[inside]**2, self.a)
         
         # Reshaped to match shape of acoustical force matrix
-        return (F*rhat).sum(1)
+        return 5.5e-1*(F*rhat).sum(1)
         

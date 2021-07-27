@@ -46,8 +46,8 @@ def norm(X):
     return X / mag1(X)
 
 # Contact Force Function (Based on Weekes-Chandler-Andersen Potential function)
-def WCA(X,a):
-    ϵ = 1e-50
+def WCA(F_0,X,a):
+    ϵ = F_0 * a *5e-40
     σ = 2 * a * ( 2 ** ( -1 / 6 ) )
     return 24*ϵ*(((2*σ**12)/((X-(2*a))**13))-((σ**6)/((X-(2*a))** 7)))
 
@@ -121,7 +121,7 @@ class Scatter:
     # bdy1 (boundary locations for a single particle): [N, Nd=3]
     # src1 (source locations for a single particle): [N, Nd=3]
 
-    def __init__(self, k=1, a=1, N=512, Nq=8, rho=1, source_depth=0.5,
+    def __init__(self, k=1, a=1, N=512, Nq=8, rho=1, phi_a=1, source_depth=0.5,
         lattice_type="icos", verbose=False, use_numba=HAS_NUMBA,
         solver=np.linalg.solve):
         '''
@@ -140,6 +140,8 @@ class Scatter:
             initialization)
         Nq : int (default: 8)
             The number of quadrature points in θ
+        phi_a : float (default: 1)
+            The amplitude of the incoming velocity potential field
         source_depth : float (default: 0.5)
             The depth of the source points in fractions of a radius
         lattice_type : str (default: 'icos')
@@ -350,7 +352,7 @@ class Scatter:
             The incoming plane wave directions.  Note: this array will get
             normalized, as all waves must have the same magnitude of k
         '''
-        A_inc = np.array(A_inc, dtype='complex')
+        A_inc = self.phi_a * np.array(A_inc, dtype='complex')
         k_inc = self.k * norm(np.array(k_inc))
 
         # Dynamically define a function for the incoming field.  The defaults
@@ -592,22 +594,25 @@ class Scatter:
         F: array with shape (Np, 3)
             The contact force on each particle.
         '''
+        #Reference acoustic force, used to compute the strength of the contact force
+        F_0 = np.pi * rho * phi_a**2 * k**2 * a**2
+        
         # Dx: Cartesian separation Matrix, R: Radial separation matrix, 
         Dx = self.X.reshape(-1,1,3) - self.X.reshape(1,-1,3)
         R = mag1(Dx)
         
         # Initialize force and direction matrices with zeros to preserve shape of final contact matrix
-        F = np.zeros_like(Dx)
-        rhat = np.zeros_like(Dx)
+        F = np.zeros_like(R, dtype='float')
+        rhat = np.zeros_like(Dx, dtype='float')
         
         # Nonself: Indices where separation matrix is nonzero, when feeding a vector of magnitude zero to the `norm` function an error is drawn
         nonself = np.where(Dx!=0)
-        rhat[nonself] = norm(Dx[nonself])
+        rhat[nonself] += norm(Dx[nonself])
     
         # Inside: Indices where radial separation distance falls within the cutoff distance of the WCA potential, but must be greater than zero
-        inside = np.where((R<2.03*self.a)*(R>self.a*1e-6))
-        F[inside] = WCA(R[inside], self.a)
+        inside = np.where((R<2.005*self.a)*(R>self.a*1e-6))
+        F[inside] += WCA(F_0,R[inside], self.a)
         
         # Reshaped to match shape of acoustical force matrix
-        return 5.5e-1*(F*rhat).sum(1)
+        return (F*rhat).sum(1)
         

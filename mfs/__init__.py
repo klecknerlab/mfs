@@ -45,11 +45,10 @@ def dot1(X, Y):
 def norm(X):
     return X / mag1(X)
 
-# Contact Force Function (Based on Weekes-Chandler-Andersen Potential function)
-def WCA(F_0,X,a):
-    ϵ = F_0 * a *5e-40
-    σ = 2 * a * ( 2 ** ( -1 / 6 ) )
-    return 24*ϵ*(((2*σ**12)/((X-(2*a))**13))-((σ**6)/((X-(2*a))** 7)))
+# Contact Force Function (Simple Power law scaling of the contact between two particles)
+def PLC(F_0,X,alpha,n,a):
+    d = 2*a
+    return 5*F_0 *((alpha - X/d)/(alpha-1))**n
 
 # Numba provides JIT compiled python functions.  These are written as
 #   generlized vector functions, which means they are automatically evaluated
@@ -121,7 +120,7 @@ class Scatter:
     # bdy1 (boundary locations for a single particle): [N, Nd=3]
     # src1 (source locations for a single particle): [N, Nd=3]
 
-    def __init__(self, k=1, a=1, N=512, Nq=8, rho=1, phi_a=1, source_depth=0.5,
+    def __init__(self, k=1, a=1, N=492, Nq=8, rho=1, phi_a=1, source_depth=0.5,
         lattice_type="icos", verbose=False, use_numba=HAS_NUMBA,
         solver=np.linalg.solve):
         '''
@@ -584,7 +583,7 @@ class Scatter:
         return  -self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal).sum(1)
 
     
-    def contact(self):
+    def contact(self, alpha=1.025, n=4):
         '''Compute the per particle contact force for a pre-solved system
         
         Note: `solve` method must be called first!
@@ -595,8 +594,7 @@ class Scatter:
             The contact force on each particle.
         '''
         #Reference acoustic force, used to compute the strength of the contact force
-        F_0 = np.pi * rho * phi_a**2 * k**2 * a**2
-        
+        F_0 = np.pi * self.rho * self.phi_a**2 * self.k**2 * self.a**2
         # Dx: Cartesian separation Matrix, R: Radial separation matrix, 
         Dx = self.X.reshape(-1,1,3) - self.X.reshape(1,-1,3)
         R = mag1(Dx)
@@ -605,14 +603,11 @@ class Scatter:
         F = np.zeros_like(R, dtype='float')
         rhat = np.zeros_like(Dx, dtype='float')
         
-        # Nonself: Indices where separation matrix is nonzero, when feeding a vector of magnitude zero to the `norm` function an error is drawn
-        nonself = np.where(Dx!=0)
-        rhat[nonself] += norm(Dx[nonself])
-    
         # Inside: Indices where radial separation distance falls within the cutoff distance of the WCA potential, but must be greater than zero
-        inside = np.where((R<2.005*self.a)*(R>self.a*1e-6))
-        F[inside] += WCA(F_0,R[inside], self.a)
+        inside = np.where((R<2*self.a*alpha)*(R>self.a*1e-6))
+        rhat[inside] += norm(Dx[inside])
+        F[inside] += PLC(F_0,R[inside],alpha,n,self.a)
         
         # Reshaped to match shape of acoustical force matrix
-        return (F*rhat).sum(1)
+        return (F[:,:,np.newaxis]*rhat).sum(1)
         

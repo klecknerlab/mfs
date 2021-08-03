@@ -159,6 +159,7 @@ class Scatter:
         self.a = a
         self.k = k
         self.rho = rho
+        self.phi_a = phi_a
         self.verbose = verbose
         self.use_numba = use_numba
         self.solver = solver

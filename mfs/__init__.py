@@ -623,7 +623,7 @@ class Scatter:
         F_0 = np.pi * self.rho * self.phi_a**2 * self.k**2 * self.a**2
         # Dx: Cartesian separation Matrix, R: Radial separation matrix, 
         Dx = self.X.reshape(-1,1,3) - self.X.reshape(1,-1,3)
-        R = mag1(Dx)
+        R = mag(Dx)
         
         # Initialize force and direction matrices with zeros to preserve shape of final contact matrix
         F = np.zeros_like(R, dtype='float')

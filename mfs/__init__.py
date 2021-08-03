@@ -582,6 +582,31 @@ class Scatter:
         #   each particle.
         # Indices: [Np, Nd=3]
         return  -self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal).sum(1)
+    
+    def energy(self):
+        '''Compute the per particle force for a pre-solved system.
+
+        Note: `solve` method must be called first!
+
+        Returns
+        -------
+        F : array with shape (Np, 3)
+            The force on each particle.
+        '''
+
+        # Define new boundary points at quadrature locations
+        # Indices: [Np, Nquad, Nd=3]
+        bdy = self.a * self.quad_normal + self.X.reshape(-1, 1, 3)
+
+        # Get second order time averaged pressure on surface
+        p2 = self.p2(bdy)
+
+        # Result is pressure on boundary times surface normal, integrated over
+        #   quadrature points with weighted normals
+        # Reshape prior to multiplication so we can sum over quad points for
+        #   each particle.
+        # Indices: [Np, Nd=3]
+        return  -self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_weight).sum(1)
 
     
     def contact(self, alpha=1.025, n=4):

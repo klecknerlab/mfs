@@ -378,6 +378,49 @@ class Scatter:
                 return f
 
         self._inc = inc
+        
+    def incoming_gaussian_waves(self, A_inc, k_inc, sigma):
+        '''Define the incoming field as a superposition of planewaves.
+
+        The field is defined as: ϕinc = ∑ A_inc e^(i k_inc·X) * e^(-s^2 / sigma^2)
+            where s is the cylindrical radius off the z axis. Note: this gaussian
+            profile does not take into account beam divergence.
+
+        Parameters
+        ----------
+        A_inc : 1D array
+            The incoming plane wave amplitudes, can be complex
+        k_inc : 2D array
+            The incoming plane wave directions.  Note: this array will get
+            normalized, as all waves must have the same magnitude of k
+        '''
+        A_inc = self.phi_a * np.array(A_inc, dtype='complex')
+        k_inc = self.k * norm(np.array(k_inc))
+
+        # Dynamically define a function for the incoming field.  The defaults
+        #   are used to capture the values of these variables.
+        # If gradient is requested, return that as well.
+        def inc(X, grad=True, A_inc=A_inc, k_inc=k_inc, sim=self):
+            f = np.zeros((X.shape[:-1] + (1,)), dtype='complex')
+            if grad:
+                g = np.zeros(X.shape, dtype='complex')
+
+            # Iterate over incoming planewaves
+            for A, k in zip(A_inc, k_inc):
+                ik = 1j * k
+                ff = A * np.exp(dot1(ik, X)) * np.exp(-(X[0]**2 + X[1]**2) / sigma**2)
+                f += ff
+
+                if grad:
+                    g += ik * ff * np.exp(-(X[0]**2+X[1]**2)/sigma**2) 
+                    g -= ff * 2 * np.array([X[0],X[1],0]) * np.exp(-(X[0]**2 + X[1]**2) / sigma**2) / sigma**2
+
+            if grad:
+                return f, g
+            else:
+                return f
+
+        self._inc = inc
 
 
     def _G(self, Δ, grad=True):

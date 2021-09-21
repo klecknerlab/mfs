@@ -413,7 +413,7 @@ class Scatter:
 
                 if grad:
                     g += ik * ff * np.exp(-(X[:,0]**2+X[:,1]**2)/sigma**2) 
-                    g -= (ff * 2 * np.array([(X[:,0],X[:,1],np.zeros(len(X)))]) * np.exp(-(X[:,0]**2 + X[:,1]**2) / sigma**2) / sigma**2).sum(-1).sum()
+                    g -= (ff * 2 * np.array([(X[:,0],X[:,1],np.zeros(len(X)))], dtype = object) * np.exp(-(X[:,0]**2 + X[:,1]**2) / sigma**2) / sigma**2).sum(-1)
 
             if grad:
                 return f, g

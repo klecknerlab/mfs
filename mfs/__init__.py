@@ -409,7 +409,7 @@ class Scatter:
             for A, k in zip(A_inc, k_inc):
                 ik = 1j * k
                 ff = A * np.exp(dot1(ik, X)) * np.exp(-(X[:,0]**2 + X[:,1]**2)/sigma**2)
-                f += ff
+                f += ff.sum(2)[...,np.newaxis]
 
                 if grad:
                     g += ik * ff * np.exp(-(X[:,0]**2+X[:,1]**2)/sigma**2) 

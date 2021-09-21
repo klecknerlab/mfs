@@ -412,8 +412,8 @@ class Scatter:
                 f += ff.sum(2)[...,np.newaxis]
 
                 if grad:
-                    g += ik * ff 
-                    g -= (ff.sum(2)[...,np.newaxis] * 2 * np.array([(X[:,0],X[:,1],np.zeros(len(X)))], dtype = object) / sigma**2).sum()
+                    g += ik * ff.sum(2)[...,np.newaxis] 
+                    g -= (ff.sum(2)[...,np.newaxis] * 2 * (X[0]+X[1]) / sigma**2).sum(-1)
 
             if grad:
                 return f, g

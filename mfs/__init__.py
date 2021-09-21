@@ -406,14 +406,15 @@ class Scatter:
                 g = np.zeros(X.shape, dtype='complex')
 
             # Iterate over incoming planewaves
+            s = np.sqrt((dot1((1,0,0),X)/mag1(X))**2 + (dot1((0,1,0),X)/mag1(X))**2)
             for A, k in zip(A_inc, k_inc):
                 ik = 1j * k
-                ff = A * np.exp(dot1(ik, X)) * np.exp(-(X[:,0]**2 + X[:,1]**2)/sigma**2)
-                f += ff.sum(2)[...,np.newaxis]
+                ff = A * np.exp(dot1(ik, X)) * np.exp(-s**2/sigma**2)
+                f += ff
 
                 if grad:
-                    g += ik * ff.sum(2)[...,np.newaxis] 
-                    g -= (ff.sum(2)[...,np.newaxis] * 2 * (X[:,0]+X[:,1]) / sigma**2)
+                    g += ik * ff
+                    g -= (ff * 2 * dot1(s,X) / sigma**2)
 
             if grad:
                 return f, g

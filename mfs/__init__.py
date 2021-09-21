@@ -408,12 +408,12 @@ class Scatter:
             # Iterate over incoming planewaves
             for A, k in zip(A_inc, k_inc):
                 ik = 1j * k
-                ff = A * np.exp(dot1(ik, X)) * (np.exp(-(X[:,0]**2 + X[:,1]**2)/sigma**2),np.exp(-(X[:,0]**2 + X[:,1]**2)/sigma**2),np.zeros(len(X)))
+                ff = A * np.exp(dot1(ik, X)) * np.exp(-(X[:,0]**2 + X[:,1]**2)/sigma**2)
                 f += ff
 
                 if grad:
                     g += ik * ff * np.exp(-(X[:,0]**2+X[:,1]**2)/sigma**2) 
-                    g -= ff * 2 * np.array([X[:,0],X[:,1],np.zeros(len(X))]) * np.exp(-(X[:,0]**2 + X[:,1]**2) / sigma**2) / sigma**2
+                    g -= (ff * 2 * np.array([X[:,0],X[:,1],np.zeros(len(X))]) * np.exp(-(X[:,0]**2 + X[:,1]**2) / sigma**2) / sigma**2).T
 
             if grad:
                 return f, g

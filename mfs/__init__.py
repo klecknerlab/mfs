@@ -414,7 +414,7 @@ class Scatter:
 
                 if grad:
                     g += ik * ff
-                    g -= (ff * 2 * dot1(s,X) / sigma**2)
+                    g -= (ff * 2 * X / sigma**2)
 
             if grad:
                 return f, g

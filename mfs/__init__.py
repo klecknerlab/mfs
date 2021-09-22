@@ -414,7 +414,7 @@ class Scatter:
             # Iterate over incoming planewaves
             for A, k in zip(A_inc, k_inc):
                 ik = 1j * k
-                ff = A * np.exp(dot1(ik, X)) * np.exp(-s**2/sigma**2)
+                ff = A * np.exp(dot1(ik, X)) * np.exp(s**2/sigma**2)
                 f += ff
 
                 if grad:

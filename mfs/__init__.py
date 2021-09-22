@@ -407,10 +407,9 @@ class Scatter:
 
             #define cylindrical coordinates
             #s = np.sqrt((dot1((1,0,0),X)/mag1(X))**2 + (dot1((0,1,0),X)/mag1(X))**2)
-            sv = np.copy(X)
-            sv[:,2] = np.zeros(len(X))
-            s = sv**2
-            s = np.sqrt(s.sum(1).sum())
+            sv = np.zeros_like(X)
+            sv[...,:2] = X[...,:2]
+            s = np.abs(sv).sum(-1)
             
             # Iterate over incoming planewaves
             for A, k in zip(A_inc, k_inc):

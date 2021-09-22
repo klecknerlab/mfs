@@ -405,8 +405,11 @@ class Scatter:
             if grad:
                 g = np.zeros(X.shape, dtype='complex')
 
-            # Iterate over incoming planewaves
+            #define cylindrical coordinates
             s = np.sqrt((dot1((1,0,0),X)/mag1(X))**2 + (dot1((0,1,0),X)/mag1(X))**2)
+            sv = np.array([dot1((1,0,0),X)/mag1(X),dot1((0,1,0),X)/mag1(X), np.zeroes(len(X)])
+            
+            # Iterate over incoming planewaves
             for A, k in zip(A_inc, k_inc):
                 ik = 1j * k
                 ff = A * np.exp(dot1(ik, X)) * np.exp(-s**2/sigma**2)
@@ -414,7 +417,7 @@ class Scatter:
 
                 if grad:
                     g += ik * ff
-                    g -= (ff * 2 * X / sigma**2)
+                    g -= (ff * 2 * sv / sigma**2)
 
             if grad:
                 return f, g

@@ -409,7 +409,7 @@ class Scatter:
             #s = np.sqrt((dot1((1,0,0),X)/mag1(X))**2 + (dot1((0,1,0),X)/mag1(X))**2)
             sv = np.copy(X)
             sv[:,:,2] -= X[:,:,2]
-            s = np.sqrt((sv**2).sum(-1).sum(-1))
+            s = np.sqrt((sv**2).sum(-1))
             
             # Iterate over incoming planewaves
             for A, k in zip(A_inc, k_inc):

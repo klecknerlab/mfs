@@ -120,7 +120,7 @@ class Scatter:
     # bdy1 (boundary locations for a single particle): [N, Nd=3]
     # src1 (source locations for a single particle): [N, Nd=3]
 
-    def __init__(self, k=1, a=1, N=492, Nq=8, rho=1, phi_a=1, source_depth=0.5, ecc = 0,
+    def __init__(self, k=1, a=1, N=492, Nq=8, rho=1, phi_a=1, source_depth=0.5, ecc = 0, Φ = 0, θ = 0, ψ = 0,
         lattice_type="icos", quad_type="norm", verbose=False, use_numba=HAS_NUMBA,
         solver=np.linalg.solve):
         '''
@@ -143,9 +143,17 @@ class Scatter:
             The amplitude of the incoming velocity potential field
         source_depth : float (default: 0.5)
             The depth of the source points in fractions of a radius
+        ecc : float (default 1)
+            The amount by which one of the axes of the body is stretched relative to the other two
+            ecc < 1 yields and oblate spheroid, ecc > 1 yields a prolate spheroid
+        Φ, θ, ψ : float (default 0,0,0)
+            Angles decribing yaw, pitch, and roll of the body spheroid respectively
         lattice_type : str (default: 'icos')
             The type of lattice used to construct the source/boundary points.
-            Valid options are "fib", "cub", and "icos"
+            Valid options are "fib", "cub", "icos", and "ell" (note if type "ell" is called
+            the eccentricity must also be defined as non-unitary)
+        quad_type :  str (default: 'norm')
+            The shape of the quadrature points, either spherical ("norm") or spheroid ("ell")
         verbose : bool (default: False)
             If true, print timing information as computations are performed
         use_numba : bool (default: True if numba installed)
@@ -161,6 +169,9 @@ class Scatter:
         self.rho = rho
         self.phi_a = phi_a
         self.ecc = ecc
+        self.Φ = Φ
+        self.θ = θ
+        self.ψ = ψ
         self.verbose = verbose
         self.use_numba = use_numba
         self.solver = solver
@@ -186,7 +197,7 @@ class Scatter:
             self.build_icosahedral_elliptic_normal()
         else:
             raise ValueError(f'Invalid lattice type: {lattice_type}')
-        
+
         qt = quad_type.lower()
         if qt.startswith('norm'):
             self.build_quadrature(Nq)
@@ -305,8 +316,8 @@ class Scatter:
         if len(self.bdy1) != self.N:
             raise ValueError(f'Error in computing icosahedral points; should have been {self.N} points total, but got {len(self.bdy1)}!\nThis should never happen, but it did!\nDid you request an absurd number of points?!')
         self.src1 = (1-self.source_depth) * self.bdy1
-        
-        
+
+
     def build_icosahedral_elliptic_normal(self):
         '''
         Build the normal of points used to compute scattering.  Normally
@@ -357,8 +368,26 @@ class Scatter:
                 Z = np.vstack([Z, Y[np.where(rmin > 0.5/n_edge)]])
             else:
                 Z = Y
-                
+
+        #stretch point coordinates along x-axis to create a prolate spheroid
         Z[:,0] *= self.ecc
+
+        #define Cayley-Klein parameters (xyz convention)
+        # Φ is yaw angle (rotation about z-axis)
+        # θ is pitch angle (rotation about body y-axis)
+        # ψ is bank angle (rotation about body x-axis)
+        α = (np.cos(self.ψ/2)*np.cos(self.θ/2) - 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(1j*self.Φ/2)
+        β = (np.cos(self.ψ/2)*np.sin(self.θ/2) + 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(-1j*self.Φ/2)
+        δ = (np.cos(self.ψ/2)*np.cos(self.θ/2) + 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(-1j*self.Φ/2)
+        γ = -(np.cos(self.ψ/2)*np.sin(self.θ/2) - 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(1j*self.Φ/2)
+
+        #define rotation Matrix
+        A = np.array([(0.5*(α**2 - γ**2 + δ**2 - β**2),0.5j*(γ**2 - α**2 + δ**2 - β**2), γ*δ - α*β),\
+        (0.5j*(α**2 + γ**2 - β**2 - δ**2), 0.5*(α**2 + γ**2 + β**2 + δ**2), -1j*(α*β - γ*δ)),\
+        (β*δ - α*γ, 1j*(α*γ+β*δ), α*δ+β*γ)])
+
+        #perform rotation
+        Z = A @ Z
 
         self.normal = norm(Z)
         self.bdy1 = self.normal
@@ -406,7 +435,7 @@ class Scatter:
         self.quad_normal = self.quad_normal.reshape(-1, 3)
         self.quad_weight = self.quad_weight.reshape(-1, 1)
         self.quad_wnormal = self.quad_normal * self.quad_weight
-        
+
     def build_elliptic_quadrature(self, Nq=8):
         '''Build the quadrature points for computing forces.  Normally this
         does not need to called by the user (unless you want to change the
@@ -445,10 +474,24 @@ class Scatter:
         # Final indices: [Nquad, Nd]
         self.quad_normal = self.quad_normal.reshape(-1, 3)
         self.quad_normal[:,0] *= self.ecc
+
+        #perform roation of quadrature points
+        α = (np.cos(self.ψ/2)*np.cos(self.θ/2) - 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(1j*self.Φ/2)
+        β = (np.cos(self.ψ/2)*np.sin(self.θ/2) + 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(-1j*self.Φ/2)
+        δ = (np.cos(self.ψ/2)*np.cos(self.θ/2) + 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(-1j*self.Φ/2)
+        γ = -(np.cos(self.ψ/2)*np.sin(self.θ/2) - 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(1j*self.Φ/2)
+
+        #define rotation Matrix
+        A = np.array([(0.5*(α**2 - γ**2 + δ**2 - β**2),0.5j*(γ**2 - α**2 + δ**2 - β**2), γ*δ - α*β),\
+        (0.5j*(α**2 + γ**2 - β**2 - δ**2), 0.5*(α**2 + γ**2 + β**2 + δ**2), -1j*(α*β - γ*δ)),\
+        (β*δ - α*γ, 1j*(α*γ+β*δ), α*δ+β*γ)])
+
+        self.quad_normal = A @ self.quad_normal
+
         self.quad_weight = self.quad_weight.reshape(-1, 1)
         self.quad_wnormal = self.quad_normal * self.quad_weight
-        
-       
+
+
 
 
     def incoming_planewaves(self, A_inc, k_inc):
@@ -490,7 +533,7 @@ class Scatter:
                 return f
 
         self._inc = inc
-        
+
     def incoming_gaussian_waves(self, A_inc, k_inc, sigma):
         '''Define the incoming field as a superposition of planewaves.
 
@@ -522,7 +565,7 @@ class Scatter:
             sv = np.copy(X)
             sv[:,:,2] -= X[:,:,2]
             s = np.sqrt((sv**2).sum(-1))[...,np.newaxis]
-            
+
             # Iterate over incoming planewaves
             for A, k in zip(A_inc, k_inc):
                 ik = 1j * k
@@ -743,7 +786,7 @@ class Scatter:
         #   each particle.
         # Indices: [Np, Nd=3]
         return  -self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal).sum(1)
-    
+
     def energy(self):
         '''Compute the per particle force for a pre-solved system.
 
@@ -769,12 +812,12 @@ class Scatter:
         # Indices: [Np, Nd=3]
         return  (self.a**3 / 3) * (p2.reshape(-1, self.Nquad, 1) * self.quad_weight).sum(1)
 
-    
+
     def contact(self, alpha=1.025, n=4):
         '''Compute the per particle contact force for a pre-solved system
-        
+
         Note: `solve` method must be called first!
-        
+
         Returns
         -------
         F: array with shape (Np, 3)
@@ -782,19 +825,18 @@ class Scatter:
         '''
         #Reference acoustic force, used to compute the strength of the contact force
         F_0 = np.pi * self.rho * self.phi_a**2 * self.k**2 * self.a**2
-        # Dx: Cartesian separation Matrix, R: Radial separation matrix, 
+        # Dx: Cartesian separation Matrix, R: Radial separation matrix,
         Dx = self.X.reshape(-1,1,3) - self.X.reshape(1,-1,3)
         R = mag(Dx)
-        
+
         # Initialize force and direction matrices with zeros to preserve shape of final contact matrix
         F = np.zeros_like(R, dtype='float')
         rhat = np.zeros_like(Dx, dtype='float')
-        
+
         # Inside: Indices where radial separation distance falls within the cutoff distance of the WCA potential, but must be greater than zero
         inside = np.where((R<2*self.a*alpha)*(R>self.a*1e-6))
         rhat[inside] += norm(Dx[inside])
         F[inside] += PLC(F_0,R[inside],alpha,n,self.a)
-        
+
         # Reshaped to match shape of acoustical force matrix
         return (F[:,:,np.newaxis]*rhat).sum(1)
-        

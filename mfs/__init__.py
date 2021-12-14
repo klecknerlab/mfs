@@ -830,7 +830,7 @@ class Scatter:
         # Get second order time averaged pressure on surface
         p2 = self.p2(bdy)
 
-        # Result is pressure on boundary times surface normal, integrated over
+        # Result is pressure on boundary integrated over
         #   quadrature points with weighted normals
         # Reshape prior to multiplication so we can sum over quad points for
         #   each particle.

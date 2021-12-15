@@ -120,8 +120,8 @@ class Scatter:
     # bdy1 (boundary locations for a single particle): [N, Nd=3]
     # src1 (source locations for a single particle): [N, Nd=3]
 
-    def __init__(self, k=1, a=1, N=492, Nq=8, rho=1, phi_a=1, source_depth=0.5, ecc = 0, Φ = 0, θ = 0, ψ = 0,
-        lattice_type="icos", quad_type="norm", verbose=False, use_numba=HAS_NUMBA,
+    def __init__(self, k=1, a=1, N=492, Nq=8, rho=1, phi_a=1, source_depth=0.5, ecc = 1,
+        lattice_type="icos", verbose=False, use_numba=HAS_NUMBA,
         solver=np.linalg.solve):
         '''
         Initialize a MFS acoustic scattering simulation.
@@ -144,16 +144,12 @@ class Scatter:
         source_depth : float (default: 0.5)
             The depth of the source points in fractions of a radius
         ecc : float (default 1)
-            The amount by which one of the axes of the body is stretched relative to the other two
+            The amount by which one of the axes of the body (z-axis coordinates) is stretched relative to the other two
             ecc < 1 yields and oblate spheroid, ecc > 1 yields a prolate spheroid
-        Φ, θ, ψ : float (default 0,0,0)
-            Angles decribing yaw, pitch, and roll of the body spheroid respectively
         lattice_type : str (default: 'icos')
             The type of lattice used to construct the source/boundary points.
             Valid options are "fib", "cub", "icos", and "ell" (note if type "ell" is called
             the eccentricity must also be defined as non-unitary)
-        quad_type :  str (default: 'norm')
-            The shape of the quadrature points, either spherical ("norm") or spheroid ("ell")
         verbose : bool (default: False)
             If true, print timing information as computations are performed
         use_numba : bool (default: True if numba installed)
@@ -169,9 +165,6 @@ class Scatter:
         self.rho = rho
         self.phi_a = phi_a
         self.ecc = ecc
-        self.Φ = Φ
-        self.θ = θ
-        self.ψ = ψ
         self.verbose = verbose
         self.use_numba = use_numba
         self.solver = solver
@@ -193,18 +186,9 @@ class Scatter:
             self.build_cube_normal()
         elif lt.startswith('icos'):
             self.build_icosahedral_normal()
-        elif lt.startswith('ell'):
-            self.build_icosahedral_elliptic_normal()
         else:
             raise ValueError(f'Invalid lattice type: {lattice_type}')
 
-        qt = quad_type.lower()
-        if qt.startswith('norm'):
-            self.build_quadrature(Nq)
-        elif qt.startswith('ell'):
-            self.build_elliptic_quadrature(Nq)
-        else:
-            raise ValueError(f'Invalid quadrature type: {quad_type}')
 
 
     def build_fib_normal(self):
@@ -311,84 +295,7 @@ class Scatter:
             else:
                 Z = Y
 
-        self.normal = norm(Z)
-        self.bdy1 = self.normal
-        if len(self.bdy1) != self.N:
-            raise ValueError(f'Error in computing icosahedral points; should have been {self.N} points total, but got {len(self.bdy1)}!\nThis should never happen, but it did!\nDid you request an absurd number of points?!')
-        self.src1 = (1-self.source_depth) * self.bdy1
-
-
-    def build_icosahedral_elliptic_normal(self):
-        '''
-        Build the normal of points used to compute scattering.  Normally
-        this does not need to called by the user, unless you are reconfiguring
-        an existing simulation.
-
-        Note: calling this function may change the number of source points, as
-        it needs to be given by 20n² - 10n + 12, where n is the number of
-        points per icosahedral face edge.  The exact sizes that are possible
-        are: N = 12, 42, 92, 162, 252, 362, 492, 642, 812, 1002, 1212, 1442...
-        '''
-        # Compute the number of points per edge
-        n_edge = 1 + int(((self.N - 2) / 10)**.5 + 0.5)
-        N = 10 * n_edge**2 - 20 * n_edge + 12
-        if N != self.N:
-            print(f'Warning: specified number of points ({self.N}) not valid for icosahedral lattice.\nUsed closest value: N={N}')
-            self.N = N
-
-        # Construct all the corners of a unit icosahedron
-        # https://en.wikipedia.org/wiki/Regular_icosahedron#Cartesian_coordinates
-        ϕ = (1 + 5**.5) / 2
-        d1 = (1 + ϕ**2)**-0.5
-        d2 = ϕ * d1
-        X = np.array([(0, d1, d2), (0, -d1, d2), (0, d1, -d2), (0, -d1, -d2)])
-        X = np.vstack([X, np.roll(X, -1, axis=-1), np.roll(X, -2, axis=-1)])
-
-        # The corners of the faces of an icosahedron, determined by hand
-        tris = [
-            (0, 1, 8), (0,10, 1), (0, 8, 4), (0, 4, 5), (0, 5,10),
-            (1,10, 7), (1, 7, 6), (1, 6, 8), (2, 3,11), (2,11, 5),
-            (2, 5, 4), (2, 4, 9), (2, 9, 3), (3, 9, 6), (3, 6, 7),
-            (3, 7,11), (4, 8, 9), (5,11,10), (6, 9, 8), (7,10,11),
-        ]
-
-        # Fractional displacement vectors along each edge for the splitting
-        DV = np.array(np.triu_indices(n_edge)).T
-        DV[:, 1] = (n_edge - 1) - DV[:, 1]
-        DV = (DV / (n_edge - 1)).reshape(-1, 2, 1)
-
-        # Build the points one face at a time
-        Z = None
-        for i1, i2, i3 in tris:
-            V = np.vstack([X[i2] - X[i1], X[i3] - X[i1]])
-            Y = X[i1] + (DV * V).sum(1)
-            # If this isn't the first face, make sure we aren't repeating points
-            if Z is not None:
-                rmin = mag(Z - Y.reshape(-1, 1, 3)).min(1)
-                Z = np.vstack([Z, Y[np.where(rmin > 0.5/n_edge)]])
-            else:
-                Z = Y
-
-        #stretch point coordinates along x-axis to create a prolate spheroid
-        Z[:,0] *= self.ecc
-
-        #define Cayley-Klein parameters (xyz convention)
-        # Φ is yaw angle (rotation about z-axis)
-        # θ is pitch angle (rotation about body y-axis)
-        # ψ is bank angle (rotation about body x-axis)
-        α = (np.cos(self.ψ/2)*np.cos(self.θ/2) - 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(1j*self.Φ/2)
-        β = (np.cos(self.ψ/2)*np.sin(self.θ/2) + 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(-1j*self.Φ/2)
-        δ = (np.cos(self.ψ/2)*np.cos(self.θ/2) + 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(-1j*self.Φ/2)
-        γ = -(np.cos(self.ψ/2)*np.sin(self.θ/2) - 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(1j*self.Φ/2)
-
-        #define rotation Matrix
-        A = np.array([(0.5*(α**2 - γ**2 + δ**2 - β**2),0.5j*(γ**2 - α**2 + δ**2 - β**2), γ*δ - α*β),\
-        (0.5j*(α**2 + γ**2 - β**2 - δ**2), 0.5*(α**2 + γ**2 + β**2 + δ**2), -1j*(α*β - γ*δ)),\
-        (β*δ - α*γ, 1j*(α*γ+β*δ), α*δ+β*γ)])
-
-        #perform rotation
-        Z = A @ Z
-
+        Z[:,2] *= self.ecc
         self.normal = norm(Z)
         self.bdy1 = self.normal
         if len(self.bdy1) != self.N:
@@ -421,7 +328,7 @@ class Scatter:
 
         # Construct normal vectors for integration
         self.quad_normal = np.zeros((Nq, Nϕ, 3))
-        self.quad_normal[..., 2] = z_normal
+        self.quad_normal[..., 2] = z_normal * self.ecc
         ρ_normal = np.sqrt(1 - self.quad_normal[..., 2]**2)
         self.quad_normal[..., 0] = ρ_normal * np.cos(ϕ)
         self.quad_normal[..., 1] = ρ_normal * np.sin(ϕ)
@@ -435,64 +342,6 @@ class Scatter:
         self.quad_normal = self.quad_normal.reshape(-1, 3)
         self.quad_weight = self.quad_weight.reshape(-1, 1)
         self.quad_wnormal = self.quad_normal * self.quad_weight
-
-    def build_elliptic_quadrature(self, Nq=8):
-        '''Build the quadrature points for computing forces.  Normally this
-        does not need to called by the user (unless you want to change the
-        quadrature of an existing sim).
-
-        Parameters
-        ----------
-        Nq : int (default: 8)
-            The number of quadrature divisions in θ.  Total number of quadrature
-            points is 2 Nq^2.
-        '''
-        # Indices for matrix construction is: [Nq, Nϕ, Nd]
-        Nϕ = 2 * Nq
-        self.Nquad = Nq * Nϕ
-
-        # Compute the Gauss-Legendre quadrature rule points and weights
-        z_normal, w = np.polynomial.legendre.leggauss(Nq)
-        z_normal = z_normal.reshape(-1, 1)
-        w = w.reshape(-1, 1)
-
-        # Angles in ϕ
-        ϕ = 2*np.pi / Nϕ * np.arange(Nϕ).reshape(1, -1)
-
-        # Construct normal vectors for integration
-        self.quad_normal = np.zeros((Nq, Nϕ, 3))
-        self.quad_normal[..., 2] = z_normal
-        ρ_normal = np.sqrt(1 - self.quad_normal[..., 2]**2)
-        self.quad_normal[..., 0] = ρ_normal * np.cos(ϕ)
-        self.quad_normal[..., 1] = ρ_normal * np.sin(ϕ)
-
-        # Construct weights, adding a dimension for ϕ
-        self.quad_weight = np.zeros((Nq, Nϕ, 1))
-        self.quad_weight[..., 0] = (np.pi / Nq * w)
-
-        # Reshape the quadrature points
-        # Final indices: [Nquad, Nd]
-        self.quad_normal = self.quad_normal.reshape(-1, 3)
-        self.quad_normal[:,0] *= self.ecc
-
-        #perform roation of quadrature points
-        α = (np.cos(self.ψ/2)*np.cos(self.θ/2) - 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(1j*self.Φ/2)
-        β = (np.cos(self.ψ/2)*np.sin(self.θ/2) + 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(-1j*self.Φ/2)
-        δ = (np.cos(self.ψ/2)*np.cos(self.θ/2) + 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(-1j*self.Φ/2)
-        γ = -(np.cos(self.ψ/2)*np.sin(self.θ/2) - 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(1j*self.Φ/2)
-
-        #define rotation Matrix
-        A = np.array([(0.5*(α**2 - γ**2 + δ**2 - β**2),0.5j*(γ**2 - α**2 + δ**2 - β**2), γ*δ - α*β),\
-        (0.5j*(α**2 + γ**2 - β**2 - δ**2), 0.5*(α**2 + γ**2 + β**2 + δ**2), -1j*(α*β - γ*δ)),\
-        (β*δ - α*γ, 1j*(α*γ+β*δ), α*δ+β*γ)])
-
-        self.quad_normal = A @ self.quad_normal
-
-        self.quad_weight = self.quad_weight.reshape(-1, 1)
-        self.quad_wnormal = self.quad_normal * self.quad_weight
-
-
-
 
     def incoming_planewaves(self, A_inc, k_inc):
         '''Define the incoming field as a superposition of planewaves.
@@ -627,7 +476,7 @@ class Scatter:
             self.start = t
 
 
-    def solve(self, X, solver=np.linalg.solve):
+    def solve(self, X, Θ, solver=np.linalg.solve):
         '''
         Solve for the scattering coefficients of the source points.
 
@@ -635,6 +484,8 @@ class Scatter:
         ----------
         X : 2D array (shape: [Np, 3])
             The positions of each of the spheres.
+        Θ : 2D array (shape: [Np, 3])
+            The orientation of each of the spheres
         '''
         self.Np = len(X)
         self.Ns = self.Np * self.N
@@ -646,12 +497,32 @@ class Scatter:
 
         self._tick(f'=============== Solving for {self.Np} particles ===============')
 
+        ψ = Θ[:,0]
+        θ = Θ[:,1]
+        Φ = Θ[:,2]
+        #define Caley-Klein parameters
+        α = (np.cos(self.ψ/2)*np.cos(self.θ/2) - 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(1j*self.Φ/2)
+        β = (np.cos(self.ψ/2)*np.sin(self.θ/2) + 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(-1j*self.Φ/2)
+        δ = (np.cos(self.ψ/2)*np.cos(self.θ/2) + 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(-1j*self.Φ/2)
+        γ = -(np.cos(self.ψ/2)*np.sin(self.θ/2) - 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(1j*self.Φ/2)
+
+        #define rotation Matrix
+        R = np.array([(0.5*(α**2 - γ**2 + δ**2 - β**2),0.5j*(γ**2 - α**2 + δ**2 - β**2), γ*δ - α*β),\
+        (0.5j*(α**2 + γ**2 - β**2 - δ**2), 0.5*(α**2 + γ**2 + β**2 + δ**2), -1j*(α*β - γ*δ)),\
+        (β*δ - α*γ, 1j*(α*γ+β*δ), α*δ+β*γ)])
+
         # Make the bdy and src arrays for the particles at the given locations
         # Array indices are right aligned, so the bdy1/src1 arrays are
         #   are applied to be the same for all particles (particle # = index 0)
         # Indices: [Np, N, Nd=3]
-        self.bdy = self.a * self.bdy1 + self.X.reshape(-1, 1, 3)
-        self.src = self.a * self.src1 + self.X.reshape(-1, 1, 3)
+        self.bdy = self.a * self.bdy1
+        self.bdy = R @ self.bdy + self.X.reshape(-1, 1, 3)
+
+        self.src = self.a * self.src1
+        self.src = R @ self.src + self.X.reshape(-1, 1, 3)
+
+        self.normal = R @ self.normal
+
 
         # Incoming field at the bdy points
         # Indices: [Np, N, Nd]

@@ -295,7 +295,7 @@ class Scatter:
             else:
                 Z = Y
 
-        Z[:,2] *= self.ar
+        Z[:,0] *= self.ar
         self.normal = norm(Z)
         self.bdy1 = self.normal
         if len(self.bdy1) != self.N:
@@ -328,7 +328,7 @@ class Scatter:
 
         # Construct normal vectors for integration
         self.quad_normal = np.zeros((Nq, Nϕ, 3))
-        self.quad_normal[..., 2] = z_normal * self.ar
+        self.quad_normal[..., 2] = z_normal
         ρ_normal = np.sqrt(1 - self.quad_normal[..., 2]**2)
         self.quad_normal[..., 0] = ρ_normal * np.cos(ϕ)
         self.quad_normal[..., 1] = ρ_normal * np.sin(ϕ)
@@ -340,6 +340,7 @@ class Scatter:
         # Reshape the quadrature points
         # Final indices: [Nquad, Nd]
         self.quad_normal = self.quad_normal.reshape(-1, 3)
+        self.quad_normal[:,0] *= self.ar
         self.quad_weight = self.quad_weight.reshape(-1, 1)
         self.quad_wnormal = self.quad_normal * self.quad_weight
 

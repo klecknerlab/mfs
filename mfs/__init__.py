@@ -492,14 +492,17 @@ class Scatter:
 
         # Check if particle input is sensible.
         self.X = np.array(X)
+        self.Θ = np.array(Θ)
         if len(self.X.shape) != 2 or self.X.shape[1] != 3:
             raise ValueError('X should be a 2D array, or equivalent, with shape [N, 3]')
+        if len(self.Θ.shape) != 2 or self.Θ.shape[1] != 3:
+            raise ValueError('Θ should be a 2D array, or equivalent, with shape [N, 3]')
 
         self._tick(f'=============== Solving for {self.Np} particles ===============')
 
-        ψ = Θ[:,0]
-        θ = Θ[:,1]
-        Φ = Θ[:,2]
+        ψ = self.Θ[:,0]
+        θ = self.Θ[:,1]
+        Φ = self.Θ[:,2]
         #define Caley-Klein parameters
         α = (np.cos(self.ψ/2)*np.cos(self.θ/2) - 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(1j*self.Φ/2)
         β = (np.cos(self.ψ/2)*np.sin(self.θ/2) + 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(-1j*self.Φ/2)

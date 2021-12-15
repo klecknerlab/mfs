@@ -500,9 +500,9 @@ class Scatter:
 
         self._tick(f'=============== Solving for {self.Np} particles ===============')
 
-        ψ = self.Θ[:,0]
-        θ = self.Θ[:,1]
-        Φ = self.Θ[:,2]
+        self.ψ = self.Θ[:,0]
+        self.θ = self.Θ[:,1]
+        self.Φ = self.Θ[:,2]
         #define Caley-Klein parameters
         α = (np.cos(self.ψ/2)*np.cos(self.θ/2) - 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(1j*self.Φ/2)
         β = (np.cos(self.ψ/2)*np.sin(self.θ/2) + 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(-1j*self.Φ/2)

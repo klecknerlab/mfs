@@ -190,6 +190,8 @@ class Scatter:
         else:
             raise ValueError(f'Invalid lattice type: {lattice_type}')
 
+        self.build_quadrature(Nq)
+
 
 
     def build_fib_normal(self):

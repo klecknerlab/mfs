@@ -502,9 +502,9 @@ class Scatter:
 
         self._tick(f'=============== Solving for {self.Np} particles ===============')
 
-        self.ψ = self.Θ[:,0]
-        self.θ = self.Θ[:,1]
-        self.Φ = self.Θ[:,2]
+        ψ = self.Θ[:,0]
+        θ = self.Θ[:,1]
+        Φ = self.Θ[:,2]
 
         # Make the bdy and src arrays for the particles at the given locations
         # Array indices are right aligned, so the bdy1/src1 arrays are

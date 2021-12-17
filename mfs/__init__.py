@@ -4,6 +4,7 @@
 import numpy as np
 import scipy.special as sp
 import time
+from scipy.spatial.transform import Rotation as R
 
 try:
     import numba
@@ -504,6 +505,7 @@ class Scatter:
         self.ψ = self.Θ[:,0]
         self.θ = self.Θ[:,1]
         self.Φ = self.Θ[:,2]
+<<<<<<< Updated upstream
         #define Caley-Klein parameters
         α = (np.cos(self.ψ/2)*np.cos(self.θ/2) - 1j*np.sin(self.ψ/2)*np.sin(self.θ/2)) * np.exp(1j*self.Φ/2)
         β = (np.cos(self.ψ/2)*np.sin(self.θ/2) + 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(-1j*self.Φ/2)
@@ -518,17 +520,26 @@ class Scatter:
         #reshape rotation matrix so it will act on appropriate body matrices
         R = np.array([R_CK[:,:,i] for i in range(self.Np)])
 
+=======
+    
+>>>>>>> Stashed changes
         # Make the bdy and src arrays for the particles at the given locations
         # Array indices are right aligned, so the bdy1/src1 arrays are
         #   are applied to be the same for all particles (particle # = index 0)
         # Indices: [Np, N, Nd=3]
         self.bdy = self.a * self.bdy1
-        self.bdy = R @ self.bdy + self.X.reshape(-1, 1, 3)
-
         self.src = self.a * self.src1
-        self.src = R @ self.src + self.X.reshape(-1, 1, 3)
+        for i in range(Np):
+            r1 = R.from_quat([np.sin(ψ[i]/2),0,0,np.cos(ψ[i]/2)])
+            r2 = R.from_quat([0,np.sin(θ[i]/2),0,np.cos(θ[i]/2)])
+            r3 = R.from_quat([0,0,np.sin(Φ[i]/2),np.cos(Φ[i]/2)])
+            r4 = r1*r2*r3
+            self.bdy[i] = r4.apply(self.bdy[i])
+            self.src[i] = r4.apply(self.src[i])
+            self.normal[i] = r4.apply(self.normal[i])
+        self.bdy += self.X.reshape(-1, 1, 3)
 
-        self.normal = R @ self.normal
+        self.src += self.X.reshape(-1, 1, 3)
 
 
         # Incoming field at the bdy points

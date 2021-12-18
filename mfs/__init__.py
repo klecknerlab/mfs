@@ -520,9 +520,6 @@ class Scatter:
             self.bdy[i] = r4.apply(self.bdy[i])
             self.src[i] = r4.apply(self.src[i])
             self.normal[i] = r4.apply(self.normal[i])
-
-        self.bdy = self.bdy[np.newaxis,:,:]
-
         self.bdy += self.X.reshape(-1, 1, 3)
 
         self.src += self.X.reshape(-1, 1, 3)

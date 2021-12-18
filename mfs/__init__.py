@@ -511,12 +511,9 @@ class Scatter:
         γ = -(np.cos(self.ψ/2)*np.sin(self.θ/2) - 1j*np.sin(self.ψ/2)*np.cos(self.θ/2)) * np.exp(1j*self.Φ/2)
 
         #define rotation Matrix
-        R_CK = np.array([(0.5*(α**2 - γ**2 + δ**2 - β**2),0.5j*(γ**2 - α**2 + δ**2 - β**2), γ*δ - α*β),\
+        R = np.array([(0.5*(α**2 - γ**2 + δ**2 - β**2),0.5j*(γ**2 - α**2 + δ**2 - β**2), γ*δ - α*β),\
         (0.5j*(α**2 + γ**2 - β**2 - δ**2), 0.5*(α**2 + γ**2 + β**2 + δ**2), -1j*(α*β - γ*δ)),\
         (β*δ - α*γ, 1j*(α*γ+β*δ), α*δ+β*γ)])
-        
-        #reshape rotation matrix so it will act on appropriate body matrices
-        R = np.array([R_CK[:,:,i] for i in range(self.Np)])
 
         # Make the bdy and src arrays for the particles at the given locations
         # Array indices are right aligned, so the bdy1/src1 arrays are

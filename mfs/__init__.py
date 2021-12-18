@@ -512,7 +512,7 @@ class Scatter:
         # Indices: [Np, N, Nd=3]
         self.bdy = self.a * self.bdy1
         self.src = self.a * self.src1
-        for i in range(self.Np):
+        for i in range(Np):
             r1 = R.from_quat([np.sin(ψ[i]/2),0,0,np.cos(ψ[i]/2)])
             r2 = R.from_quat([0,np.sin(θ[i]/2),0,np.cos(θ[i]/2)])
             r3 = R.from_quat([0,0,np.sin(Φ[i]/2),np.cos(Φ[i]/2)])

@@ -813,14 +813,14 @@ class Scatter:
             return  -self.a**2 * np.cross((p2.reshape(-1, self.Nquad, 1)*self.quad_wnormal), bdy).sum(1)
 
     def energy(self):
-        '''Compute the per particle energy for a pre-solved system.
+        '''Compute the per particle force for a pre-solved system.
 
         Note: `solve` method must be called first!
 
         Returns
         -------
-        E : array with shape (Np, 3)
-            The acoustic potential energy associated with each particle.
+        F : array with shape (Np, 3)
+            The force on each particle.
         '''
 
         # Define new boundary points at quadrature locations

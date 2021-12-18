@@ -191,7 +191,7 @@ class Scatter:
         if qt.startswith('norm'):
             self.build_quadrature(Nq)
         elif qt.startswith('ell'):
-            self.build_elliptic_quadrature(Nq)
+            self.build_elliptic_quadrature(Nq):
         else:
             raise ValueError(f'Invalid quadrature type: {quad_type}')
 

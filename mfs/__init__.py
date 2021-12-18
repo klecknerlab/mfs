@@ -120,7 +120,7 @@ class Scatter:
     # bdy1 (boundary locations for a single particle): [N, Nd=3]
     # src1 (source locations for a single particle): [N, Nd=3]
 
-    def __init__(self, k=1, a=1, N=492, Nq=8, rho=1, phi_a=1, source_depth=0.5, ar = 1,
+    def __init__(self, k=1, a=1, N=492, Nq=8, rho=1, phi_a=1, source_depth=0.5, ecc = 1,
         lattice_type="icos", verbose=False, use_numba=HAS_NUMBA,
         solver=np.linalg.solve):
         '''
@@ -143,8 +143,8 @@ class Scatter:
             The amplitude of the incoming velocity potential field
         source_depth : float (default: 0.5)
             The depth of the source points in fractions of a radius
-        ar : float (default 1)
-            Aspect ratio, the amount by which one of the axes of the body (z-axis coordinates) is stretched relative to the other two
+        ecc : float (default 1)
+            The amount by which one of the axes of the body (z-axis coordinates) is stretched relative to the other two
             ecc < 1 yields and oblate spheroid, ecc > 1 yields a prolate spheroid
         lattice_type : str (default: 'icos')
             The type of lattice used to construct the source/boundary points.
@@ -164,7 +164,7 @@ class Scatter:
         self.k = k
         self.rho = rho
         self.phi_a = phi_a
-        self.ar = ar
+        self.ecc = ecc
         self.verbose = verbose
         self.use_numba = use_numba
         self.solver = solver
@@ -295,7 +295,7 @@ class Scatter:
             else:
                 Z = Y
 
-        Z[:,2] *= self.ar
+        Z[:,2] *= self.ecc
         self.normal = norm(Z)
         self.bdy1 = self.normal
         if len(self.bdy1) != self.N:
@@ -328,7 +328,7 @@ class Scatter:
 
         # Construct normal vectors for integration
         self.quad_normal = np.zeros((Nq, Nϕ, 3))
-        self.quad_normal[..., 2] = z_normal * self.ar
+        self.quad_normal[..., 2] = z_normal * self.ecc
         ρ_normal = np.sqrt(1 - self.quad_normal[..., 2]**2)
         self.quad_normal[..., 0] = ρ_normal * np.cos(ϕ)
         self.quad_normal[..., 1] = ρ_normal * np.sin(ϕ)

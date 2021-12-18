@@ -665,30 +665,30 @@ class Scatter:
         # Indices: [Np, Nd=3]
         return  -self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal).sum(1)
 
-    def torque(self):
-        '''Compute the per particle torque for a pre-solved system.
+        def torque(self):
+            '''Compute the per particle torque for a pre-solved system.
 
-        Note: `solve` method must be called first!
+            Note: `solve` method must be called first!
 
-        Returns
-        -------
-        M : array with shape (Np, 3)
-            The torque on each particle.
-        '''
+            Returns
+            -------
+            M : array with shape (Np, 3)
+                The torque on each particle.
+            '''
 
-        # Define new boundary points at quadrature locations
-        # Indices: [Np, Nquad, Nd=3]
-        bdy = self.a * self.quad_normal + self.X.reshape(-1, 1, 3)
+            # Define new boundary points at quadrature locations
+            # Indices: [Np, Nquad, Nd=3]
+            bdy = self.a * self.quad_normal + self.X.reshape(-1, 1, 3)
 
-        # Get second order time averaged pressure on surface
-        p2 = self.p2(bdy)
+            # Get second order time averaged pressure on surface
+            p2 = self.p2(bdy)
 
-        # Result is pressure on boundary times surface normal crossed with body vectors, integrated over
-        #   quadrature points with weighted normals
-        # Reshape prior to multiplication so we can sum over quad points for
-        #   each particle.
-        # Indices: [Np, Nd=3]
-        return  -self.a**2 * np.cross((p2.reshape(-1, self.Nquad, 1)*self.quad_wnormal), bdy).sum(1)
+            # Result is pressure on boundary times surface normal crossed with body vectors, integrated over
+            #   quadrature points with weighted normals
+            # Reshape prior to multiplication so we can sum over quad points for
+            #   each particle.
+            # Indices: [Np, Nd=3]
+            return  -self.a**2 * np.cross((p2.reshape(-1, self.Nquad, 1)*self.quad_wnormal), bdy).sum(1)
 
     def energy(self):
         '''Compute the per particle energy for a pre-solved system.

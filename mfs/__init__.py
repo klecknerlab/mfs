@@ -407,7 +407,7 @@ class Scatter:
         self.quad_weight = self.quad_weight.reshape(-1, 1)
         self.quad_wnormal = self.quad_normal * self.quad_weight
         
-    def build_elliptic_quadrature(self, Nq=8):
+    def build_quadrature_elliptic(self, Nq=8):
         '''Build the quadrature points for computing forces.  Normally this
         does not need to called by the user (unless you want to change the
         quadrature of an existing sim).

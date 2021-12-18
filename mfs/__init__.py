@@ -331,8 +331,9 @@ class Scatter:
 
         # Construct normal vectors for integration
         self.quad_normal = np.zeros((Nq, Nϕ, 3))
-        self.quad_normal[..., 2] = z_normal * self.ar
+        self.quad_normal[..., 2] = z_normal
         ρ_normal = np.sqrt(1 - self.quad_normal[..., 2]**2)
+        self.quad_normal[...,2] *= self.ar
         self.quad_normal[..., 0] = ρ_normal * np.cos(ϕ)
         self.quad_normal[..., 1] = ρ_normal * np.sin(ϕ)
 

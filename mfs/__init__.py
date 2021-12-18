@@ -298,7 +298,7 @@ class Scatter:
             else:
                 Z = Y
 
-        Z[:,2] *= self.ar
+        #Z[:,2] *= self.ar
         self.normal = norm(Z)
         self.bdy1 = self.normal
         if len(self.bdy1) != self.N:
@@ -343,7 +343,7 @@ class Scatter:
         # Reshape the quadrature points
         # Final indices: [Nquad, Nd]
         self.quad_normal = self.quad_normal.reshape(-1, 3)
-        self.quad_normal[:,2] *= self.ar
+        #self.quad_normal[:,2] *= self.ar
         self.quad_weight = self.quad_weight.reshape(-1, 1)
         self.quad_wnormal = self.quad_normal * self.quad_weight
 

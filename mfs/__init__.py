@@ -378,7 +378,7 @@ class Scatter:
                 return f
 
         self._inc = inc
-        
+
     def incoming_gaussian_waves(self, A_inc, k_inc, sigma):
         '''Define the incoming field as a superposition of planewaves.
 
@@ -410,7 +410,7 @@ class Scatter:
             sv = np.copy(X)
             sv[:,:,2] -= X[:,:,2]
             s = np.sqrt((sv**2).sum(-1))[...,np.newaxis]
-            
+
             # Iterate over incoming planewaves
             for A, k in zip(A_inc, k_inc):
                 ik = 1j * k
@@ -631,7 +631,7 @@ class Scatter:
         #   each particle.
         # Indices: [Np, Nd=3]
         return  -self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal).sum(1)
-    
+
     def energy(self):
         '''Compute the per particle force for a pre-solved system.
 
@@ -657,12 +657,12 @@ class Scatter:
         # Indices: [Np, Nd=3]
         return  (self.a**3 / 3) * (p2.reshape(-1, self.Nquad, 1) * self.quad_weight).sum(1)
 
-    
+
     def contact(self, alpha=1.025, n=4):
         '''Compute the per particle contact force for a pre-solved system
-        
+
         Note: `solve` method must be called first!
-        
+
         Returns
         -------
         F: array with shape (Np, 3)
@@ -670,19 +670,18 @@ class Scatter:
         '''
         #Reference acoustic force, used to compute the strength of the contact force
         F_0 = np.pi * self.rho * self.phi_a**2 * self.k**2 * self.a**2
-        # Dx: Cartesian separation Matrix, R: Radial separation matrix, 
+        # Dx: Cartesian separation Matrix, R: Radial separation matrix,
         Dx = self.X.reshape(-1,1,3) - self.X.reshape(1,-1,3)
         R = mag(Dx)
-        
+
         # Initialize force and direction matrices with zeros to preserve shape of final contact matrix
         F = np.zeros_like(R, dtype='float')
         rhat = np.zeros_like(Dx, dtype='float')
-        
+
         # Inside: Indices where radial separation distance falls within the cutoff distance of the WCA potential, but must be greater than zero
         inside = np.where((R<2*self.a*alpha)*(R>self.a*1e-6))
         rhat[inside] += norm(Dx[inside])
         F[inside] += PLC(F_0,R[inside],alpha,n,self.a)
-        
+
         # Reshaped to match shape of acoustical force matrix
         return (F[:,:,np.newaxis]*rhat).sum(1)
-        

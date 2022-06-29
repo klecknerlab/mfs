@@ -680,7 +680,7 @@ class Scatter:
         # Reshape prior to multiplication so we can sum over quad points for
         #   each particle.
         # Indices: [Np, Nd=3]
-        return  - (self.a**3 / 3) * (p2.reshape(-1, self.Nquad, 1) * self.quad_weight).sum(1)
+        return  np.abs((self.a**3 / 3) * (p2.reshape(-1, self.Nquad, 1) * self.quad_weight).sum(1))
 
 
     def contact(self, alpha=1.025, n=4):

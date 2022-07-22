@@ -120,7 +120,7 @@ class Scatter:
     # bdy1 (boundary locations for a single particle): [N, Nd=3]
     # src1 (source locations for a single particle): [N, Nd=3]
 
-    def __init__(self, k=1, a=1, N=492, Nq=8, rho=1, phi_a=1, source_depth=0.5,
+    def __init__(self, k=1, a=1, N=492, Nq=8, rho=1, phi_a=1, source_depth=0.5,A_r = 1,
         lattice_type="icos", verbose=False, use_numba=HAS_NUMBA,
         solver=np.linalg.solve):
         '''

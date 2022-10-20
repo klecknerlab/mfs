@@ -120,7 +120,7 @@ class Scatter:
     # bdy1 (boundary locations for a single particle): [N, Nd=3]
     # src1 (source locations for a single particle): [N, Nd=3]
 
-    def __init__(self, k=1, a=1, N=492, Nq=8, rho=1, phi_a=1, source_depth=0.5,
+    def __init__(self, k=1, a=1, N=492, rho=1, phi_a=1, source_depth=0.5,
         lattice_type="icos", verbose=False, use_numba=HAS_NUMBA,
         solver=np.linalg.solve):
         '''
@@ -138,7 +138,7 @@ class Scatter:
             need the exact value, this is stored in the `N` attribute after
             initialization)
         Nq : int (default: 8)
-            The number of quadrature points in θ
+            The number of quadrature points in θ, used in a previous version of the scatter class
         phi_a : float (default: 1)
             The amplitude of the incoming velocity potential field
         source_depth : float (default: 0.5)
@@ -184,7 +184,7 @@ class Scatter:
         else:
             raise ValueError(f'Invalid lattice type: {lattice_type}')
 
-        self.build_quadrature(Nq)
+        #self.build_quadrature(Nq)
 
 
     def build_fib_normal(self):
@@ -205,6 +205,8 @@ class Scatter:
         # Indices: [N, 3]
         self.bdy1 = self.normal
         self.src1 = (1-self.source_depth) * self.bdy1
+        
+        return self.src1
 
 
     def build_cube_normal(self):
@@ -296,10 +298,12 @@ class Scatter:
         if len(self.bdy1) != self.N:
             raise ValueError(f'Error in computing icosahedral points; should have been {self.N} points total, but got {len(self.bdy1)}!\nThis should never happen, but it did!\nDid you request an absurd number of points?!')
         self.src1 = (1-self.source_depth) * self.bdy1
+        
+        return self.src1;
 
-
+    '''
     def build_quadrature(self, Nq=8):
-        '''Build the quadrature points for computing forces.  Normally this
+        ''''''Build the quadrature points for computing forces.  Normally this
         does not need to called by the user (unless you want to change the
         quadrature of an existing sim).
 
@@ -308,7 +312,7 @@ class Scatter:
         Nq : int (default: 8)
             The number of quadrature divisions in θ.  Total number of quadrature
             points is 2 Nq^2.
-        '''
+        ''''''
         # Indices for matrix construction is: [Nq, Nϕ, Nd]
         Nϕ = 2 * Nq
         self.Nquad = Nq * Nϕ
@@ -337,7 +341,7 @@ class Scatter:
         self.quad_normal = self.quad_normal.reshape(-1, 3)
         self.quad_weight = self.quad_weight.reshape(-1, 1)
         self.quad_wnormal = self.quad_normal * self.quad_weight
-
+        '''
 
     def incoming_planewaves(self, A_inc, k_inc):
         '''Define the incoming field as a superposition of planewaves.
@@ -380,7 +384,7 @@ class Scatter:
         self._inc = inc
 
     def incoming_gaussian_waves(self, A_inc, k_inc, sigma):
-        '''Define the incoming field as a superposition of planewaves.
+        '''Define the incoming field as a superposition of Gaussian waves.
 
         The field is defined as: ϕinc = ∑ A_inc e^(i k_inc·X) * e^(-s^2 / sigma^2)
             where s is the cylindrical radius off the z axis. Note: this gaussian
@@ -451,10 +455,19 @@ class Scatter:
         '''
 
         r = mag1(Δ)
-        G = np.exp(1j * self.k * r) / (4 * np.pi * r)
-
+        G = np.empty_like(r, dtype = complex)
+        GG = np.empty_like(Δ ,dtype = complex)
+        for i in range(len(r)):
+            for j in range(len(r)):
+                if r[i,j] == 0:
+                    G[i,j] = 0
+                    GG[i,j] = [0,0,0]
+                else:
+                    G[i,j] = np.exp(1j * self.k * r[i,j]) / (4 * np.pi * r[i,j])
+                    GG[i,j] = (1j*self.k - 1/r[i,j]) * G[i,j] * (Δ[i,j]/r[i,j])
+        
         if grad:
-            return G, (1j*self.k - 1/r) * G * (Δ/r)
+            return G, GG
         else:
             return G
 
@@ -501,6 +514,7 @@ class Scatter:
         # Incoming field at the bdy points
         # Indices: [Np, N, Nd]
         inc, grad_inc = self._inc(self.bdy)
+        inc_src, grad_inc_src = self._inc(self.src)
 
         if self.use_numba:
             # Build scattering matrix in Numba
@@ -531,7 +545,7 @@ class Scatter:
 
         self._tock(f'Linear Solver ({self.Ns} x {self.Ns})')
 
-        return self.c
+        return self.c;
 
 
     def fields(self, X):
@@ -562,7 +576,12 @@ class Scatter:
         # Compute Green's function and it's gradient
         # Indices: [NX=total number of points in X, Np*N, Nd]
         Δ = X.reshape(-1, 1, 3) - self.src.reshape(1, -1, 3)
+        #for i in range(len(X)):
+         #   for j in range(len(X)):
+          #      if np.sqrt((Δ[i,j]**2).sum()) < 1e-10:
+           #         Δ[i,j,:] = np.inf
         G, grad_G = self._G(Δ)
+       
 
         # Sum over source points.
         # Result has indices: [NX, Nd]
@@ -570,7 +589,7 @@ class Scatter:
         ϕ = (G * c_flat).sum(1).reshape(X.shape[:-1]) + inc.reshape(X.shape[:-1])
         v = (grad_G * c_flat).sum(1).reshape(X.shape) + grad_inc
 
-        return ϕ, v
+        return ϕ, v;
 
 
     def p2(self, X):
@@ -620,6 +639,32 @@ class Scatter:
 
         # Define new boundary points at quadrature locations
         # Indices: [Np, Nquad, Nd=3]
+        # bdy = self.a * self.quad_normal + self.X.reshape(-1, 1, 3)
+
+        # Get second order time averaged pressure on surface
+        # p2 = self.p2(bdy)
+        ϕ,del_ϕ = self.fields(self.src)
+        # Result is pressure on boundary times surface normal, integrated over
+        #   quadrature points with weighted normals
+        # Reshape prior to multiplication so we can sum over quad points for
+        #   each particle.
+        # Indices: [Np, Nd=3]
+        # return  -self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal).sum(1)
+        return self.rho * np.real(del_ϕ * np.conjugate(self.c.reshape(-1,self.N,1))).sum(1) / 2
+
+    def torque(self):
+        '''Compute the per particle force for a pre-solved system.
+
+        Note: `solve` method must be called first!
+
+        Returns
+        -------
+        F : array with shape (Np, 3)
+            The force on each particle.
+        '''
+
+        # Define new boundary points at quadrature locations
+        # Indices: [Np, Nquad, Nd=3]
         bdy = self.a * self.quad_normal + self.X.reshape(-1, 1, 3)
 
         # Get second order time averaged pressure on surface
@@ -630,7 +675,7 @@ class Scatter:
         # Reshape prior to multiplication so we can sum over quad points for
         #   each particle.
         # Indices: [Np, Nd=3]
-        return  -self.a**2 * (p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal).sum(1)
+        return  -self.a**2 * np.cross((p2.reshape(-1, self.Nquad, 1) * self.quad_wnormal),bdy).sum(1)
 
     def energy(self):
         '''Compute the per particle force for a pre-solved system.
@@ -655,7 +700,7 @@ class Scatter:
         # Reshape prior to multiplication so we can sum over quad points for
         #   each particle.
         # Indices: [Np, Nd=3]
-        return  (self.a**3 / 3) * (p2.reshape(-1, self.Nquad, 1) * self.quad_weight).sum(1)
+        return  np.abs((self.a**3 / 3) * (p2.reshape(-1, self.Nquad, 1) * self.quad_weight).sum(1))
 
 
     def contact(self, alpha=1.025, n=4):
